@@ -45,7 +45,7 @@ TOOL_CHECKS=("pip3" "npm" "mvn" "docker")
 for TOOL in ${TOOL_CHECKS[@]}; do
     which ${TOOL} 2>&1 >/dev/null
     if [[ $? -ne 0 ]]; then
-        echo "Missing \"$TOOL\"! Cannot continue. Please ensure you have the correct tools installed with Brew."
+        echo "Missing \"${TOOL}\"! Cannot continue. Please ensure you have the correct tools installed with Brew or your package manager."
         exit 1
     fi
 done
@@ -136,7 +136,7 @@ repository: https://${NEXUS_HOST}/repository/pypi-hosted/
 username: ${NEXUS_USER}
 password: ${NEXUS_PASS}" > ~/.pypirc
 
-if ! pipenv --version | grep '2018.11.27.dev0' &> /dev/null; then
+if [[ ! -x $(command -v pipenv) ]] || ! pipenv --version 2>&1 | grep '2018.11.27.dev0' &> /dev/null; then
   echo "I noticed pipenv is not install or is not using our recommended version"
   echo "I can install/update pipenv for you"
   read -p "Would you want me to? " -n 1 -r
@@ -151,7 +151,19 @@ fi
 # Docker Setup
 ############
 echo "Setting up Docker"
-DOCKER_OUTPUT=$(printf "${NEXUS_PASS}" |  docker login --username ${NEXUS_USER} --password-stdin ${DOCKER_HOST} 2>&1)
+
+UNAME_OUTPUT=$(uname -s)
+case "${UNAME_OUTPUT}" in
+  Linux*)
+    DOCKER_COMMAND="sudo docker";;
+  Darwin*)
+    DOCKER_COMMAND="docker";;
+  *)
+    msg_fatal "UNKNOWN OS: ${UNAME_OUTPUT}" >&2
+    exit 1
+esac
+
+DOCKER_OUTPUT=$(eval "printf ${NEXUS_PASS} | ${DOCKER_COMMAND} login --username ${NEXUS_USER} --password-stdin ${DOCKER_HOST}" 2>&1)
 DOCKER_STATUS=$?
 
 # All finished, test to make sure everything works
